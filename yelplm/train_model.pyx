@@ -22,6 +22,7 @@ ctypedef np.int32_t  LABEL_INT
 cdef int ONE = 1
 cdef REAL_t ONEF = <REAL_t>1.0
 cdef REAL_t ZEROF = <REAL_t>0.0
+cdef REAL_t SMALL_NUM = <REAL_t>1e-6
 
 ctypedef void (*sger_ptr) (const int *M, const int *N, const float *alpha, const float *X, const int *incX, float *Y, const int *incY, float *A, const int * LDA) nogil
 ctypedef void (*scopy_ptr) (const int *N, const float *X, const int *incX, float *Y, const int *incY) nogil
@@ -56,16 +57,7 @@ def init():
     into table EXP_TABLE.
 
     """
-    global fast_sentence_sg
-    global fast_sentence_cbow
     cdef int i
-    cdef float *x = [<float>10.0]
-    cdef float *y = [<float>0.01]
-    cdef float expected = <float>0.1
-    cdef int size = 1
-    cdef double d_res
-    cdef float *p_res
-
     # build the sigmoid table
     for i in range(EXP_TABLE_SIZE):
         EXP_TABLE[i] = <REAL_t>exp((i / <REAL_t>EXP_TABLE_SIZE * 2 - 1) * MAX_EXP)
@@ -300,18 +292,23 @@ cdef void make_prediction(
 
     # softmax and sigmoid output:
     cdef Py_ssize_t i
-    cdef int  class_offset = 0
+    cdef int class_offset = 0
     
     # for all softmax classes:
     for i in range(0, num_softmax_classes[0]):
         softmax(&output[class_offset], &distribution_sizes[i], &output[class_offset])
-        error[0] += softmax_error(&softmax_target[i], &output[class_offset])
+        if output[class_offset + softmax_target[i]] > SMALL_NUM:
+            error[0] += softmax_error(&softmax_target[i], &output[class_offset])
         class_offset += distribution_sizes[i]
 
     # for all sigmoid classes:
     for i in range(0, num_sigmoid_classes[0]):
-        output[class_offset + i] = sigmoid(output[class_offset + i])
-        error[0] += binary_crossentropy_error(sigmoid_target[i], output[class_offset + i])
+        if output[class_offset + i] > -MAX_EXP and output[class_offset + i] < MAX_EXP:
+            output[class_offset + i] = sigmoid(output[class_offset + i])
+            error[0] += binary_crossentropy_error(sigmoid_target[i], output[class_offset + i])
+        else:
+            # error will cause craziness to ensue.
+            output[class_offset + i] = sigmoid(output[class_offset + i])
 
 cdef void make_prediction_no_error(
     int * observation_size,

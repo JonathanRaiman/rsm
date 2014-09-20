@@ -159,3 +159,7 @@ Here we initialize a model that uses the vectors for the words in a window and a
 We can then perform gradient descent on all the examples and minimize the classification error for each object. Running this for about 9 epochs works for a small dataset, and hopefully applies to the larger case here.
 
 In this particular instance we find that looking at the eucledian distance between object vectors acts as a fuzzy search on all the attributes. It remains to be evaluated how much of the semantic information about the objects is contained in these. Furthermore, this model is not auto-regressive, thus there is no way to generalize to unlabeled data in the future. Nonetheless for document retrieval purposes this is effective.
+
+It is important to note that there are hundreds of labels to predict, but only 20 dimensions for the object vector, thus this enforces specificity.
+
+A Java implementation can be [found here](https://git.mers.csail.mit.edu/jraiman/yelplm/tree/master#yelp-language-model)
