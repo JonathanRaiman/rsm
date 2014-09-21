@@ -136,7 +136,9 @@ Here we initialize a model that uses the vectors for the words in a window and a
         size = 20,
         object_size = 20,
         output_sigmoid_classes = catconvert.num_categories,
-        output_classes=[5, 5] # "", "$", "$$",...,"$$$$", 5 price classes, and 5 rating classes
+        output_sigmoid_labels = catconvert.index2category,
+        output_classes=[5, 5], # "", "$", "$$",...,"$$$$", 5 price classes, and 5 rating classes
+        output_labels = [["", "$", "$$", "$$$", "$$$$"], ["1", "2", "3", "4", "5"]]
     )
 
     import logging
@@ -162,4 +164,14 @@ In this particular instance we find that looking at the eucledian distance betwe
 
 It is important to note that there are hundreds of labels to predict, but only 20 dimensions for the object vector, thus this enforces specificity.
 
-A Java implementation can be [found here](https://git.mers.csail.mit.edu/jraiman/yelplm/tree/master#yelp-language-model)
+A Java implementation can be [found here](https://git.mers.csail.mit.edu/jraiman/yelplm/tree/master#yelp-language-model).
+
+### Saving model for Java or potentially Matlab:
+
+The model's parameters can be saved to interact with Java as follows:
+
+    model.save_model_to_java("saves/current_model")
+
+Then from Java you can import this model as described [here](https://git.mers.csail.mit.edu/jraiman/yelplm/tree/master#load-language-model).
+
+
