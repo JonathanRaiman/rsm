@@ -246,8 +246,19 @@ class YelpLM(object):
 
         if not os.path.exists(path): os.makedirs(path)
         param_dict = {}
+
+        # if we need to create a normalized version of the word and object vectors
+        # we create one now.
+        if not hasattr(self, "norm_model_matrix"):
+            self.create_normalized_matrices()
+
         for param in self.params:
-            param_dict[param.name] = param.get_value(borrow = True)
+            if param is self.model_matrix:
+                param_dict[param.name] = self.norm_model_matrix
+            elif param is self.object_matrix:
+                param_dict[param.name] = self.norm_object_matrix
+            else:
+                param_dict[param.name] = param.get_value(borrow = True)
 
         scipy_io.savemat(path + "parameters.mat", param_dict)
         self.save_model_parameters(path)
@@ -559,6 +570,11 @@ class DatasetGenerator():
         self.texts = texts
         self.texts_data = texts_data
         self.category_converter = category_converter
+
+    def save_ids(self, path):
+        with gzip.open(path, "w") as f:
+            for datum in self.texts_data:
+                f.write( (datum["_id"] + "\n").encode("utf-8") )
         
     def convert_datum_to_classes(self, datum):
         return np.array([len(datum["price"]), max(0, int(datum["rating"])-1)], dtype=INT)
