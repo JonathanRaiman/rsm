@@ -1,5 +1,6 @@
 import theano, theano.tensor as T
 import numpy as np
+import scipy.io as scipy_io
 from collections import OrderedDict
 import sys, os, pickle, gzip
 sys.path.append("/Users/jonathanraiman/Desktop/Coding/language_modeling/")
@@ -105,6 +106,8 @@ class YelpLM(object):
     
     
     """
+
+    version_id = 1.0
     
     def load_saved_weights(self, path):
         """
@@ -184,7 +187,71 @@ class YelpLM(object):
         if not os.path.exists(path): os.makedirs(path)
         for param in self.params:
             np.save("%s%s.npy" % (path, param.name), param.get_value(borrow = True))
-    
+
+        self.save_model_parameters(path)
+
+    def save_model_parameters(self, path):
+        if not path.endswith("/"): path = path + "/"
+        if not os.path.exists(path): os.makedirs(path)
+
+        parameters_hash = {
+            "version_id": type(self).version_id,
+            "window": self.window,
+            "size": self.size,
+            "object_size": self.object_size,
+            "output_classes" : list(self.output_classes),
+            "output_sigmoid_classes": self.output_sigmoid_classes,
+            "theano_mode" : self.theano_mode,
+            "object_vocabulary_size": self.object_vocabulary_size,
+            "batch_size": self._batch_size,
+            "bilinear_form" : self.bilinear_form,
+            "alpha" : self._alpha,
+            "UnknownWordIndex" : self.vocab.UnknownWordIndex,
+            "UnknownUppercaseWordIndex": self.vocab.UnknownUppercaseWordIndex
+        }
+
+        for k, c in enumerate(self.output_labels):
+            parameters_hash["softmax_labels_%d" % (k)] = c
+
+        parameters_hash["sigmoid_labels"] = self.output_sigmoid_labels
+
+
+        with open(path + "__dict__.txt", "w") as f:
+            for key, value in parameters_hash.items():
+                f.write(key)
+                f.write(" ")
+                f.write(str(value))
+                f.write("\n")
+
+    def save_vocabulary(self, path):
+        if not path.endswith("/"): path = path + "/"
+
+        if not os.path.exists(path): os.makedirs(path)
+        with gzip.open(path + "__vocab__.gz", "w") as f:
+            for word in self.vocab.index2word:
+                f.write( (word + "\n").encode("utf-8") )
+
+    def save_model_to_java(self, path):
+        """
+
+        Save the parameters of this model to a directory.
+
+        Inputs
+        ------
+
+        str path: the path to the directory the parameters will be stored.
+
+        """
+        if not path.endswith("/"): path = path + "/"
+
+        if not os.path.exists(path): os.makedirs(path)
+        param_dict = {}
+        for param in self.params:
+            param_dict[param.name] = param.get_value(borrow = True)
+
+        scipy_io.savemat(path + "parameters.mat", param_dict)
+        self.save_model_parameters(path)
+
     @property
     def batch_size(self):
         return self._batch_size
@@ -196,7 +263,9 @@ class YelpLM(object):
                  window = 10,
                  object_size = 20,
                  output_classes = [2, 2], # 2 output classes of size 2 each
+                 output_labels = [],
                  output_sigmoid_classes = 4,
+                 output_sigmoid_labels = [],
                  concatenate = True,
                  alpha = 0.035,
                  bilinear_form = False, # not support by cython yet.
@@ -217,6 +286,9 @@ class YelpLM(object):
         self.vocabulary_size = len(self.vocab.vocab)
         self.object_vocabulary_size = object_vocabulary_size
         self.window = window
+
+        self.output_sigmoid_labels = output_sigmoid_labels
+        self.output_labels = output_labels
         
         self.output_size = output_sigmoid_classes + (sum(output_classes) if len(output_classes) > 0 else 0)
         
@@ -469,6 +541,11 @@ class CategoriesConverter(object):
     def save(self, path):
         with gzip.open(path, 'wb') as file:
             pickle.dump(self, file, 1)
+
+    def save_to_java(self, path):
+        with gzip.open(path, 'w') as file:
+            for category in self.index2category:
+                file.write((category + "\n").encode('utf-8'))
             
     @staticmethod
     def load(path):
