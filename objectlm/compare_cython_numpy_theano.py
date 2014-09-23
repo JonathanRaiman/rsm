@@ -1,4 +1,4 @@
-from yelplm import YelpLM
+from objectlm import ObjectLM
 
 # should modify this to do some auto-encoding / self regression.
 
@@ -14,7 +14,7 @@ import pyximport
 pyximport.install(setup_args={"include_dirs": np.get_include()})
 from .train_model import get_proj_matrix_grad
 
-model = YelpLM(
+model = ObjectLM(
     vocabulary = lmsenti,
     object_vocabulary_size = 200,
     window = 10,

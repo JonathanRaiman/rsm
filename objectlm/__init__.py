@@ -1,24 +1,12 @@
-import theano, theano.tensor as T
-import numpy as np
-import scipy.io as scipy_io
+import theano, theano.tensor as T, numpy as np, scipy.io as scipy_io, pyximport, threading, logging, time, sys, os, pickle, gzip, json
 from collections import OrderedDict
-import sys, os, pickle, gzip
 sys.path.append("/Users/jonathanraiman/Desktop/Coding/language_modeling/")
-
-import pyximport
 pyximport.install(setup_args={"include_dirs": np.get_include()})
-
 from .train_model import train_sentence_concatenation, predict_sentence_window, predict_distribution_sentence_window
-
 from gensim import utils as gensim_utils
-import threading
 from queue import Queue
-import logging
-import time
-logger = logging.getLogger("yelplm.training")
-
-
 from numpy import float32 as REAL, int32 as INT
+logger = logging.getLogger("objectlm.training")
 
 def bilinear_form(tensor, x):
     """
@@ -27,10 +15,10 @@ def bilinear_form(tensor, x):
     """
     return T.dot(T.dot(tensor, x), x)
 
-class YelpLM(object):
+class ObjectLM(object):
     """
     
-    Yelp Language Model
+    Object Language Model
     -------------------
     
     Use all sorts of information as a labeled dataset.
@@ -46,7 +34,7 @@ class YelpLM(object):
         
     Count the number of words in vocab:
     
-        model = YelpLM(vocabulary_size = 3)
+        model = ObjectLM(vocabulary_size = 3)
         
     And then train using those words:
     
@@ -67,7 +55,7 @@ class YelpLM(object):
         
     Count the number of objects in the object vocabulary:
         
-        model = YelpLM(object_vocabulary_size = 2,
+        model = ObjectLM(object_vocabulary_size = 2,
                        vocabulary_size= 1000)
                        
     And then train using those objects:
@@ -227,9 +215,9 @@ class YelpLM(object):
         if not path.endswith("/"): path = path + "/"
 
         if not os.path.exists(path): os.makedirs(path)
-        with gzip.open(path + "__vocab__.gz", "w") as f:
+        with gzip.open(path + "__vocab__.gz", "wt") as f:
             for word in self.vocab.index2word:
-                f.write( (word + "\n").encode("utf-8") )
+                f.write( (word + "\n") )
 
     def save_model_to_java(self, path):
         """
@@ -249,16 +237,9 @@ class YelpLM(object):
 
         # if we need to create a normalized version of the word and object vectors
         # we create one now.
-        if not hasattr(self, "norm_model_matrix"):
-            self.create_normalized_matrices()
 
         for param in self.params:
-            if param is self.model_matrix:
-                param_dict[param.name] = self.norm_model_matrix
-            elif param is self.object_matrix:
-                param_dict[param.name] = self.norm_object_matrix
-            else:
-                param_dict[param.name] = param.get_value(borrow = True)
+            param_dict[param.name] = param.get_value(borrow = True)
 
         scipy_io.savemat(path + "parameters.mat", param_dict)
         self.save_model_parameters(path)
@@ -554,9 +535,9 @@ class CategoriesConverter(object):
             pickle.dump(self, file, 1)
 
     def save_to_java(self, path):
-        with gzip.open(path, 'w') as file:
+        with gzip.open(path, 'wt') as file:
             for category in self.index2category:
-                file.write((category + "\n").encode('utf-8'))
+                file.write((category + "\n"))
             
     @staticmethod
     def load(path):
@@ -572,9 +553,14 @@ class DatasetGenerator():
         self.category_converter = category_converter
 
     def save_ids(self, path):
-        with gzip.open(path, "w") as f:
+        with gzip.open(path, "wt") as f:
             for datum in self.texts_data:
-                f.write( (datum["_id"] + "\n").encode("utf-8") )
+                f.write( (datum["_id"] + "\n") )
+
+    def save(self, path):
+        with gzip.open(path, "wt") as f:
+            json.dump(self.texts_data, f)
+
         
     def convert_datum_to_classes(self, datum):
         return np.array([len(datum["price"]), max(0, int(datum["rating"])-1)], dtype=INT)
