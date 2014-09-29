@@ -365,11 +365,40 @@ class ObjectLM(object):
         return result[:topn]
 
     def most_similar_object(self, object_index, topn = 20):
-        object = self.norm_object_matrix[object_index]
+        if object_index is np.ndarray or list:
+            object = object_index
+        else:
+            object = self.norm_object_matrix[object_index]
+            topn = topn + 1
         dists = np.dot(self.norm_object_matrix, object).astype(REAL)
-        best = np.argsort(dists)[::-1][:topn + 1]
-        result = [(sim, float(dists[sim])) for sim in best if sim != object_index]
+        best = np.argsort(dists)[::-1][:topn]
+        if object_index is np.ndarray or list:
+            result = [(sim, float(dists[sim])) for sim in best]
+        else:
+            result = [(sim, float(dists[sim])) for sim in best if sim != object_index]
         return result[:topn]
+
+
+    def projection_fun(self, observation, labels, sigmoid_labels):
+        if self.bilinear_form:
+            log_unnormalized_pred = bilinear_form(self.composition_matrix, observation) + T.dot(self.projection_matrix, observation) + self.bias_vector
+        else:
+            log_unnormalized_pred = T.dot(self.projection_matrix, observation)  + self.bias_vector
+        
+        prev_position = 0
+        preds = []
+        
+        error = 0.0
+        for i, class_size in enumerate(self.output_classes):
+            class_prediction = T.nnet.softmax(log_unnormalized_pred[prev_position:prev_position + class_size])
+            preds.append(class_prediction[0])
+            prev_position += class_size
+            error += T.nnet.categorical_crossentropy(class_prediction, labels[i:i+1]).sum()
+        
+        prediction = T.nnet.sigmoid(log_unnormalized_pred[prev_position:])
+        error += T.nnet.binary_crossentropy(prediction, sigmoid_labels).sum()
+
+        return (preds, prediction, error)
     
     def _create_update_fun(self):
         """
@@ -396,28 +425,12 @@ class ObjectLM(object):
         
         if self.concatenate:
             # or we concatenate all the words and add the object to it
-            embeddings = T.concatenate([embeddings.ravel(), object_embedding])
+            merged_embeddings = T.concatenate([embeddings.ravel(), object_embedding])
         else:
             # or we sum all the words and add the object to it:
-            embeddings = embeddings.sum(axis=1) + object_embedding
-        
-        if self.bilinear_form:
-            log_unnormalized_pred = bilinear_form(self.composition_matrix, embeddings) + T.dot(self.projection_matrix, embeddings) + self.bias_vector
-        else:
-            log_unnormalized_pred = T.dot(self.projection_matrix, embeddings)  + self.bias_vector
-        
-        prev_position = 0
-        preds = []
-        
-        error = 0.0
-        for i, class_size in enumerate(self.output_classes):
-            class_prediction = T.nnet.softmax(log_unnormalized_pred[prev_position:prev_position + class_size])
-            preds.append(class_prediction[0])
-            prev_position += class_size
-            error += T.nnet.categorical_crossentropy(class_prediction, labels[i:i+1]).sum()
-        
-        prediction = T.nnet.sigmoid(log_unnormalized_pred[prev_position:])
-        error += T.nnet.binary_crossentropy(prediction, sigmoid_labels).sum()
+            merged_embeddings = embeddings.sum(axis=1) + object_embedding
+
+        preds, prediction, error = self.projection_fun(merged_embeddings, labels, sigmoid_labels)
 
         updates = OrderedDict()
         
@@ -432,7 +445,13 @@ class ObjectLM(object):
                 updates[param] = param - self.alpha * gparam
             
         self.predict_proba = theano.function([input, input_object], preds + [prediction], mode = self.theano_mode)
-        self.predict = theano.function([input, input_object], [pred.argmax() for pred in preds] + prediction.round(), mode = self.theano_mode)
+        self.predict = theano.function([input, input_object], [pred.argmax() for pred in preds] + [prediction.round()], mode = self.theano_mode)
+
+        input_vector = T.vector()
+        alt_preds, alt_prediction, alt_error = self.projection_fun(input_vector, labels, sigmoid_labels)
+        self.predict_vector = theano.function([input_vector], [pred.argmax() for pred in alt_preds] + [alt_prediction.round()], mode = self.theano_mode)
+
+        self.predict_vector_proba = theano.function([input_vector], alt_preds + [alt_prediction], mode = self.theano_mode)
         
         training_inputs = []
         if len(self.output_classes) > 0:

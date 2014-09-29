@@ -304,7 +304,6 @@ def rating_to_string(rating):
 def present_restaurant(restaurant, text=None):
     if text is None:
         text = restaurant.get("saved_text").split(" ")
-    
     display(HTML("""
     <div>
         <h2>%s</h2>
@@ -316,8 +315,8 @@ def present_restaurant(restaurant, text=None):
         <p style='width:450px'>%s</p>
     </div>""" % (
         restaurant.get("_id"),
-        restaurant.get("price"),
-        "$" * (3-len(restaurant.get("price"))),
+        "<span>" + "</span><span>".join(list(restaurant.get("price"))) + "</span>",
+        "<span>$</span>" * (4-len(restaurant.get("price"))),
         rating_to_string(restaurant.get("rating")),
         rating_to_string(ceil(5 - restaurant.get("rating"))),
         len(text),
