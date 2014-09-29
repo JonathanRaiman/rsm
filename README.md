@@ -97,6 +97,10 @@ v_{\mathrm{probabilities}}\right)$$
 
 ## PVDM
 
+Code for this implementation can be found [here](https://github.com/JonathanRaiman/PVDM).
+
+To get it working do the following:
+
     pvdm = PVDM(
         concatenate = True,
         random_window = False,
@@ -119,6 +123,5 @@ Now we train the PV-DM using gradient descent on the bytes missed during hierach
 
     # a push-button fitting function for the words:
     pvdm.fit(texts)
-
 
 This generates a set of vectors for each document (restaurant in this instance), that have a eucledian distance between them related to their content (a distributional model).
